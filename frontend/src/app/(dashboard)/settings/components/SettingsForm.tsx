@@ -1,78 +1,86 @@
 'use client'
 
-import { useForm, Controller } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { LoadingSpinner } from '@/components/common/LoadingSpinner'
+import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
+import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { LoadingSpinner } from '@/components/common/LoadingSpinner'
 import { useSettings, useUpdateSettings } from '@/lib/hooks/use-settings'
-import { useEffect, useState } from 'react'
-import { ChevronDownIcon } from 'lucide-react'
 import { useTranslation } from '@/lib/hooks/use-translation'
+import { SettingsResponse } from '@/lib/types/api'
 
-const settingsSchema = z.object({
-  default_content_processing_engine_doc: z.enum(['auto', 'docling', 'simple']).optional(),
-  default_content_processing_engine_url: z.enum(['auto', 'firecrawl', 'jina', 'simple']).optional(),
-  default_embedding_option: z.enum(['ask', 'always', 'never']).optional(),
-  auto_delete_files: z.enum(['yes', 'no']).optional(),
-})
+type SettingKey =
+  | 'default_content_processing_engine_doc'
+  | 'default_content_processing_engine_url'
+  | 'default_embedding_option'
+  | 'auto_delete_files'
 
-type SettingsFormData = z.infer<typeof settingsSchema>
+interface SettingRow {
+  key: SettingKey
+  label: string
+  description: string
+  options: { value: string; label: string }[]
+  help: string
+}
 
+/**
+ * Four settings, four rows. Changes apply immediately — the backend accepts
+ * partial updates, so each select saves just its own field.
+ */
 export function SettingsForm() {
   const { t } = useTranslation()
   const { data: settings, isLoading, error } = useSettings()
   const updateSettings = useUpdateSettings()
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    doc: false,
-    url: false,
-    embedding: false,
-    files: false
-  })
-  const [hasResetForm, setHasResetForm] = useState(false)
-  
-  
-  const {
-    control,
-    handleSubmit,
-    reset,
-    formState: { isDirty }
-  } = useForm<SettingsFormData>({
-    resolver: zodResolver(settingsSchema),
-    defaultValues: {
-      default_content_processing_engine_doc: undefined,
-      default_content_processing_engine_url: undefined,
-      default_embedding_option: undefined,
-      auto_delete_files: undefined,
-    }
-  })
+  const [helpOpen, setHelpOpen] = useState(false)
 
-
-  const toggleSection = (section: string) => {
-    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }))
-  }
-
-  useEffect(() => {
-    if (settings && settings.default_content_processing_engine_doc && !hasResetForm) {
-      const formData = {
-        default_content_processing_engine_doc: settings.default_content_processing_engine_doc as 'auto' | 'docling' | 'simple',
-        default_content_processing_engine_url: settings.default_content_processing_engine_url as 'auto' | 'firecrawl' | 'jina' | 'simple',
-        default_embedding_option: settings.default_embedding_option as 'ask' | 'always' | 'never',
-        auto_delete_files: settings.auto_delete_files as 'yes' | 'no',
-      }
-      reset(formData)
-      setHasResetForm(true)
-    }
-  }, [hasResetForm, reset, settings])
-
-  const onSubmit = async (data: SettingsFormData) => {
-    await updateSettings.mutateAsync(data)
-  }
+  const rows: SettingRow[] = [
+    {
+      key: 'default_content_processing_engine_doc',
+      label: t('simpleSettings.documents'),
+      description: t('simpleSettings.documentsDesc'),
+      options: [
+        { value: 'auto', label: t('settings.autoRecommended') },
+        { value: 'docling', label: t('settings.docling') },
+        { value: 'simple', label: t('settings.simple') },
+      ],
+      help: t('settings.docHelp'),
+    },
+    {
+      key: 'default_content_processing_engine_url',
+      label: t('simpleSettings.webPages'),
+      description: t('simpleSettings.webPagesDesc'),
+      options: [
+        { value: 'auto', label: t('settings.autoRecommended') },
+        { value: 'firecrawl', label: t('settings.firecrawl') },
+        { value: 'jina', label: t('settings.jina') },
+        { value: 'simple', label: t('settings.simple') },
+      ],
+      help: t('settings.urlHelp'),
+    },
+    {
+      key: 'default_embedding_option',
+      label: t('simpleSettings.embedNewSources'),
+      description: t('simpleSettings.embedNewSourcesDesc'),
+      options: [
+        { value: 'ask', label: t('simpleSettings.askEachTime') },
+        { value: 'always', label: t('settings.always') },
+        { value: 'never', label: t('settings.never') },
+      ],
+      help: t('settings.embeddingHelp'),
+    },
+    {
+      key: 'auto_delete_files',
+      label: t('simpleSettings.uploadedFiles'),
+      description: t('simpleSettings.uploadedFilesDesc'),
+      options: [
+        { value: 'yes', label: t('simpleSettings.deleteWhenDone') },
+        { value: 'no', label: t('simpleSettings.keepForever') },
+      ],
+      help: t('settings.filesHelp'),
+    },
+  ]
 
   if (isLoading) {
     return (
@@ -94,185 +102,54 @@ export function SettingsForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('settings.contentProcessing')}</CardTitle>
-          <CardDescription>
-            {t('settings.contentProcessingDesc')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-3">
-            <Label htmlFor="doc_engine">{t('settings.docEngine')}</Label>
-            <Controller
-              name="default_content_processing_engine_doc"
-              control={control}
-              render={({ field }) => (
-                  <Select
-                    key={field.value}
-                    name={field.name}
-                    value={field.value || ''}
-                    onValueChange={field.onChange}
-                    disabled={field.disabled || isLoading}
-                  >
-                      <SelectTrigger id="doc_engine" className="w-full">
-                        <SelectValue placeholder={t('settings.docEnginePlaceholder')} />
-                      </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="auto">{t('settings.autoRecommended')}</SelectItem>
-                      <SelectItem value="docling">{t('settings.docling')}</SelectItem>
-                      <SelectItem value="simple">{t('settings.simple')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-              )}
-            />
-            <Collapsible open={expandedSections.doc} onOpenChange={() => toggleSection('doc')}>
-              <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                <ChevronDownIcon className={`h-4 w-4 transition-transform ${expandedSections.doc ? 'rotate-180' : ''}`} />
-                {t('settings.helpMeChoose')}
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-2 text-sm text-muted-foreground space-y-2">
-                <p>{t('settings.docHelp')}</p>
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
-          
-          <div className="space-y-3">
-            <Label htmlFor="url_engine">{t('settings.urlEngine')}</Label>
-            <Controller
-              name="default_content_processing_engine_url"
-              control={control}
-              render={({ field }) => (
-                <Select
-                  key={field.value}
-                  name={field.name}
-                  value={field.value || ''}
-                  onValueChange={field.onChange}
-                  disabled={field.disabled || isLoading}
-                >
-                  <SelectTrigger id="url_engine" className="w-full">
-                    <SelectValue placeholder={t('settings.urlEnginePlaceholder')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto">{t('settings.autoRecommended')}</SelectItem>
-                    <SelectItem value="firecrawl">{t('settings.firecrawl')}</SelectItem>
-                    <SelectItem value="jina">{t('settings.jina')}</SelectItem>
-                    <SelectItem value="simple">{t('settings.simple')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-             <Collapsible open={expandedSections.url} onOpenChange={() => toggleSection('url')}>
-              <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                <ChevronDownIcon className={`h-4 w-4 transition-transform ${expandedSections.url ? 'rotate-180' : ''}`} />
-                {t('settings.helpMeChoose')}
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-2 text-sm text-muted-foreground space-y-2">
-                <p>{t('settings.urlHelp')}</p>
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
-        </CardContent>
-      </Card>
-
-       <Card>
-        <CardHeader>
-          <CardTitle>{t('settings.embeddingAndSearch')}</CardTitle>
-          <CardDescription>
-            {t('settings.embeddingAndSearchDesc')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-           <div className="space-y-3">
-            <Label htmlFor="embedding">{t('settings.defaultEmbeddingOption')}</Label>
-            <Controller
-              name="default_embedding_option"
-              control={control}
-              render={({ field }) => (
-                <Select
-                  key={field.value}
-                  name={field.name}
-                  value={field.value || ''}
-                  onValueChange={field.onChange}
-                  disabled={field.disabled || isLoading}
-                >
-                  <SelectTrigger id="embedding" className="w-full">
-                    <SelectValue placeholder={t('settings.embeddingOptionPlaceholder')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ask">{t('settings.ask')}</SelectItem>
-                    <SelectItem value="always">{t('settings.always')}</SelectItem>
-                    <SelectItem value="never">{t('settings.never')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-             <Collapsible open={expandedSections.embedding} onOpenChange={() => toggleSection('embedding')}>
-              <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                <ChevronDownIcon className={`h-4 w-4 transition-transform ${expandedSections.embedding ? 'rotate-180' : ''}`} />
-                {t('settings.helpMeChoose')}
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-2 text-sm text-muted-foreground space-y-2">
-                <p>{t('settings.embeddingHelp')}</p>
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
-        </CardContent>
-      </Card>
-
-       <Card>
-        <CardHeader>
-          <CardTitle>{t('settings.fileManagement')}</CardTitle>
-          <CardDescription>
-            {t('settings.fileManagementDesc')}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-           <div className="space-y-3">
-            <Label htmlFor="auto_delete">{t('settings.autoDeleteFiles')}</Label>
-            <Controller
-              name="auto_delete_files"
-              control={control}
-              render={({ field }) => (
-                <Select
-                  key={field.value}
-                  name={field.name}
-                  value={field.value || ''}
-                  onValueChange={field.onChange}
-                  disabled={field.disabled || isLoading}
-                >
-                  <SelectTrigger id="auto_delete" className="w-full">
-                    <SelectValue placeholder={t('settings.autoDeletePlaceholder')} />
-                  </SelectTrigger>
-                   <SelectContent>
-                    <SelectItem value="yes">{t('common.yes')}</SelectItem>
-                    <SelectItem value="no">{t('common.no')}</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-             <Collapsible open={expandedSections.files} onOpenChange={() => toggleSection('files')}>
-              <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                <ChevronDownIcon className={`h-4 w-4 transition-transform ${expandedSections.files ? 'rotate-180' : ''}`} />
-                {t('settings.helpMeChoose')}
-              </CollapsibleTrigger>
-              <CollapsibleContent className="mt-2 text-sm text-muted-foreground space-y-2">
-                <p>{t('settings.filesHelp')}</p>
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="flex justify-end">
-         <Button 
-          type="submit" 
-          disabled={!isDirty || updateSettings.isPending}
-        >
-          {updateSettings.isPending ? t('common.saving') : t('common.save')}
-        </Button>
-      </div>
-    </form>
+    <Card className="max-w-3xl">
+      <CardContent className="p-0">
+        <div className="divide-y">
+          {rows.map(row => (
+            <div
+              key={row.key}
+              className="grid grid-cols-1 sm:grid-cols-[1fr_220px] items-center gap-x-4 gap-y-1 px-4 py-3"
+            >
+              <div>
+                <div className="text-sm font-medium">{row.label}</div>
+                <div className="text-xs text-muted-foreground">{row.description}</div>
+              </div>
+              <Select
+                value={(settings?.[row.key] as string) || undefined}
+                onValueChange={v => updateSettings.mutate({ [row.key]: v } as Partial<SettingsResponse>)}
+                disabled={updateSettings.isPending}
+              >
+                <SelectTrigger aria-label={row.label}>
+                  <SelectValue placeholder={t('simpleSettings.choose')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {row.options.map(o => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ))}
+        </div>
+        <Collapsible open={helpOpen} onOpenChange={setHelpOpen}>
+          <CollapsibleTrigger asChild>
+            <button className="flex w-full items-center gap-1.5 border-t px-4 py-2.5 text-xs text-muted-foreground hover:text-foreground">
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform ${helpOpen ? 'rotate-180' : ''}`} />
+              {t('settings.helpMeChoose')}
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <dl className="border-t px-4 py-3 space-y-3 text-xs text-muted-foreground">
+              {rows.map(row => (
+                <div key={row.key}>
+                  <dt className="font-medium text-foreground">{row.label}</dt>
+                  <dd className="mt-0.5">{row.help}</dd>
+                </div>
+              ))}
+            </dl>
+          </CollapsibleContent>
+        </Collapsible>
+      </CardContent>
+    </Card>
   )
 }
