@@ -1,26 +1,28 @@
 'use client'
 
 import { useState } from 'react'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { Badge } from '@/components/ui/badge'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { ChevronDown, ChevronRight, Trash2, Wand2, Edit } from 'lucide-react'
+import { Play, Trash2 } from 'lucide-react'
 import { Transformation } from '@/lib/types/transformations'
 import { useDeleteTransformation } from '@/lib/hooks/use-transformations'
 import { useTranslation } from '@/lib/hooks/use-translation'
-import { cn } from '@/lib/utils'
+import { TryPanel } from './TryPanel'
 
 interface TransformationCardProps {
   transformation: Transformation
-  onPlayground?: () => void
   onEdit?: () => void
 }
 
-export function TransformationCard({ transformation, onPlayground, onEdit }: TransformationCardProps) {
+/**
+ * One transformation: name, what it does, and the actions in place.
+ * "Try" opens an inline runner under the row — no separate playground tab.
+ */
+export function TransformationCard({ transformation, onEdit }: TransformationCardProps) {
   const { t } = useTranslation()
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [tryOpen, setTryOpen] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const deleteTransformation = useDeleteTransformation()
 
@@ -31,78 +33,54 @@ export function TransformationCard({ transformation, onPlayground, onEdit }: Tra
 
   return (
     <>
-      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-        <Card>
-          <CardHeader>
-            <div className="flex items-start justify-between gap-4">
-              <CollapsibleTrigger className="flex-1 text-left">
-                <div className={cn('flex items-center gap-3', isExpanded ? 'mb-2' : '')}>
-                  {isExpanded ? (
-                    <ChevronDown className="h-5 w-5" />
-                  ) : (
-                    <ChevronRight className="h-5 w-5" />
-                  )}
-                  <div className="flex flex-col">
-                    <span className="font-semibold">{transformation.name}</span>
-                    {!isExpanded && transformation.description && (
-                      <span className="text-sm text-muted-foreground">{transformation.description}</span>
-                    )}
-                  </div>
-                  {transformation.apply_default && (
-                    <Badge variant="secondary">{t('common.default')}</Badge>
-                  )}
-                </div>
-              </CollapsibleTrigger>
-
-              <div className="flex items-center gap-2">
-                {onPlayground && (
-                  <Button variant="outline" size="sm" onClick={onPlayground}>
-                    <Wand2 className="h-4 w-4 mr-2" />
-                    {t('transformations.playground')}
-                  </Button>
-                )}
-                {onEdit && (
-                  <Button variant="outline" size="sm" onClick={onEdit}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    {t('common.edit')}
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-red-600 hover:text-red-700"
-                  onClick={() => setShowDeleteDialog(true)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-
-          <CollapsibleContent>
-            <CardContent className="space-y-4">
-              <div>
-                <p className="text-sm text-muted-foreground">{t('common.title')}</p>
-                <p className="text-sm font-medium">{transformation.title || t('sources.untitledSource')}</p>
-              </div>
-
-              {transformation.description && (
-                <div>
-                  <p className="text-sm text-muted-foreground">{t('common.description')}</p>
-                  <p className="text-sm leading-6">{transformation.description}</p>
-                </div>
+      <Card className="overflow-hidden">
+        <div className="flex items-center justify-between gap-4 px-4 py-3">
+          <button className="flex-1 text-left min-w-0" onClick={onEdit} title={t('common.edit')}>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium truncate">{transformation.name}</span>
+              {transformation.apply_default && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
+                  {t('common.default')}
+                </Badge>
               )}
-
-              <div>
-                <p className="text-sm text-muted-foreground">{t('transformations.systemPrompt')}</p>
-                <pre className="mt-2 whitespace-pre-wrap rounded-md bg-muted p-3 text-sm font-mono">
-                  {transformation.prompt}
-                </pre>
-              </div>
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
+            </div>
+            {transformation.description && (
+              <p className="text-xs text-muted-foreground truncate">{transformation.description}</p>
+            )}
+          </button>
+          <div className="flex items-center shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`h-7 px-2 text-xs ${tryOpen ? '' : 'text-muted-foreground'}`}
+              onClick={() => setTryOpen(o => !o)}
+            >
+              <Play className="h-3.5 w-3.5 mr-1" />
+              {t('simpleTransformations.try')}
+            </Button>
+            {onEdit && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-muted-foreground"
+                onClick={onEdit}
+              >
+                {t('common.edit')}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-muted-foreground hover:text-destructive"
+              onClick={() => setShowDeleteDialog(true)}
+              title={t('common.delete')}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+        {tryOpen && <TryPanel transformation={transformation} />}
+      </Card>
 
       <ConfirmDialog
         open={showDeleteDialog}
