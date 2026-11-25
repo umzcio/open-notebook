@@ -9,7 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Progress } from '@/components/ui/progress'
-import { Loader2, AlertCircle, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { Loader2, AlertCircle, CheckCircle2, XCircle, Clock, AlertTriangle, RefreshCw } from 'lucide-react'
 import {
   Accordion,
   AccordionContent,
@@ -207,7 +207,10 @@ export function RebuildEmbeddings() {
                   {t('advanced.rebuild.starting')}
                 </>
               ) : (
-                t('advanced.rebuild.startBtn')
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  {t('advanced.rebuild.startBtn')}
+                </>
               )}
             </Button>
 
@@ -262,8 +265,9 @@ export function RebuildEmbeddings() {
                 </div>
                 <Progress value={progressPercent} className="h-2" />
                 {failedItems > 0 && (
-                  <p className="text-sm text-warn">
-                    ⚠️ {t('advanced.rebuild.failedItems', { count: failedItems })}
+                  <p className="flex items-center gap-1.5 text-sm text-warn">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    {t('advanced.rebuild.failedItems', { count: failedItems })}
                   </p>
                 )}
               </div>
